@@ -11,7 +11,7 @@ $database = new Database();
 $conn = $database->getConnection();
 
 // Lấy thông tin đơn hàng
-$stmt = $conn->prepare("SELECT o.*, u.username, u.email, u.phone, u.address 
+$stmt = $conn->prepare("SELECT o.*, u.username, u.email, u.phone 
                        FROM orders o 
                        JOIN users u ON o.user_id = u.id 
                        WHERE o.id = ? AND o.user_id = ?");
@@ -30,6 +30,11 @@ $stmt = $conn->prepare("SELECT od.*, p.name, p.image
                        WHERE od.order_id = ?");
 $stmt->execute([$_GET['id']]);
 $order_details = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Lấy thông tin thanh toán
+$stmt = $conn->prepare("SELECT * FROM payments WHERE order_id = ?");
+$stmt->execute([$_GET['id']]);
+$payment = $stmt->fetch(PDO::FETCH_ASSOC);
 ?>
 
 <!DOCTYPE html>
@@ -54,7 +59,12 @@ $order_details = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         <i class="fas fa-check-circle text-success" style="font-size: 4rem;"></i>
                         <h2 class="mt-3">Đặt hàng thành công!</h2>
                         <p class="lead">Cảm ơn bạn đã mua hàng tại MyStore</p>
-                        <p>Mã đơn hàng của bạn là: <strong>#<?php echo $order['id']; ?></strong></p>
+                        <p>Mã đơn hàng của bạn là: <strong>#<?php echo htmlspecialchars($order['id']); ?></strong></p>
+                        <?php if ($payment['payment_method'] === 'CASH'): ?>
+                            <p class="text-info">Bạn sẽ thanh toán <strong><?php echo number_format($order['total_price'], 0, ',', '.'); ?> đ</strong> khi nhận hàng.</p>
+                        <?php elseif ($payment['payment_method'] === 'VNPAY' && $payment['status'] === 'COMPLETED'): ?>
+                            <p class="text-success">Thanh toán VNPay thành công! Mã giao dịch: <strong><?php echo htmlspecialchars($payment['transaction_id']); ?></strong></p>
+                        <?php endif; ?>
                     </div>
                 </div>
 
@@ -72,11 +82,11 @@ $order_details = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php foreach($order_details as $detail): ?>
+                                    <?php foreach ($order_details as $detail): ?>
                                         <tr>
                                             <td>
                                                 <div class="d-flex align-items-center">
-                                                    <img src="<?php echo htmlspecialchars($detail['image']); ?>" 
+                                                    <img src="./uploads/products/<?php echo htmlspecialchars($detail['image']); ?>" 
                                                          alt="<?php echo htmlspecialchars($detail['name']); ?>"
                                                          class="img-thumbnail me-3" style="width: 80px;">
                                                     <div>
@@ -94,7 +104,6 @@ $order_details = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                     <tr>
                                         <td colspan="3" class="text-end"><strong>Tổng cộng:</strong></td>
                                         <td><strong><?php echo number_format($order['total_price'], 0, ',', '.'); ?> đ</strong></td>
-                                        <td></td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -108,10 +117,29 @@ $order_details = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         <p><strong>Họ tên:</strong> <?php echo htmlspecialchars($order['username']); ?></p>
                         <p><strong>Email:</strong> <?php echo htmlspecialchars($order['email']); ?></p>
                         <p><strong>Số điện thoại:</strong> <?php echo htmlspecialchars($order['phone']); ?></p>
-                        <p><strong>Địa chỉ:</strong> <?php echo htmlspecialchars($order['address']); ?></p>
+                        <p><strong>Địa chỉ giao hàng:</strong> <?php echo htmlspecialchars($order['shipping_address']); ?></p>
                         <p><strong>Trạng thái:</strong> 
-                            <span class="badge bg-warning"><?php echo $order['status']; ?></span>
+                            <span class="badge <?php echo $order['status'] === 'PROCESSING' ? 'bg-success' : 'bg-warning'; ?>">
+                                <?php echo $order['status'] === 'PROCESSING' ? 'Đang xử lý' : 'Chờ xử lý'; ?>
+                            </span>
                         </p>
+                    </div>
+                </div>
+
+                <div class="card mt-4">
+                    <div class="card-body">
+                        <h4 class="card-title">Thông tin thanh toán</h4>
+                        <p><strong>Phương thức:</strong> 
+                            <?php echo $payment['payment_method'] === 'CASH' ? 'Thanh toán khi nhận hàng (COD)' : htmlspecialchars($payment['payment_method']); ?>
+                        </p>
+                        <p><strong>Trạng thái thanh toán:</strong> 
+                            <span class="badge <?php echo $payment['status'] === 'COMPLETED' ? 'bg-success' : ($payment['status'] === 'FAILED' ? 'bg-danger' : 'bg-warning'); ?>">
+                                <?php echo $payment['status'] === 'COMPLETED' ? 'Thành công' : ($payment['status'] === 'FAILED' ? 'Thất bại' : 'Chờ xử lý'); ?>
+                            </span>
+                        </p>
+                        <?php if ($payment['payment_method'] === 'VNPAY' && $payment['transaction_id']): ?>
+                            <p><strong>Mã giao dịch:</strong> <?php echo htmlspecialchars($payment['transaction_id']); ?></p>
+                        <?php endif; ?>
                     </div>
                 </div>
 
@@ -132,4 +160,5 @@ $order_details = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
-</html> 
+</html>
+<?php // Đảm bảo thẻ đóng PHP ?>

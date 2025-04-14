@@ -29,7 +29,7 @@ if ($start_date && $end_date) {
 $revenueQuery = "
     SELECT DATE(created_at) AS date, SUM(total_price) AS revenue
     FROM orders
-    WHERE status = 'CANCELLED' 
+    WHERE status = 'DELIVERED' 
     $where_clause
     GROUP BY DATE(created_at)
     ORDER BY DATE(created_at) ASC
@@ -60,7 +60,7 @@ if (!$revenues) {
 $query = "SELECT o.*, u.username as user_name, u.email as user_email 
           FROM orders o 
           JOIN users u ON o.user_id = u.id 
-          WHERE o.status = 'CANCELLED' 
+          WHERE o.status = 'DELIVERED' 
           ORDER BY o.created_at DESC";
 $stmt = $conn->query($query);
 $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);

@@ -62,7 +62,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['message'])) {
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 30px;
+            font-size: 28px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
             cursor: pointer;
             z-index: 1000;
         }
@@ -75,49 +76,88 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['message'])) {
             position: fixed;
             bottom: 90px;
             right: 20px;
-            width: 300px;
-            height: 400px;
-            border: 2px solid #007bff;
-            border-radius: 10px;
+            width: 340px;
+            max-height: 500px;
+            border-radius: 12px;
             background-color: #fff;
-            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
             display: none;
+            flex-direction: column;
+            overflow: hidden;
             z-index: 999;
+            border: none;
         }
 
         .chat-box {
-            max-height: 300px;
-            overflow-y: scroll;
-            padding: 10px;
+            height: 380px;
+            overflow-y: auto;
+            padding: 15px;
+            background: #f9f9f9;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
 
         .chat-input {
+            display: flex;
             padding: 10px;
             background-color: #f1f1f1;
-            border-top: 1px solid #ccc;
+            border-top: 1px solid #ddd;
         }
 
         .chat-input input {
-            width: calc(100% - 60px);
-            padding: 5px;
-            border: none;
-            border-radius: 5px;
+            flex: 1;
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            padding: 8px 15px;
+            outline: none;
+            font-size: 14px;
         }
 
         .chat-input button {
+            margin-left: 8px;
             background-color: #007bff;
-            color: white;
             border: none;
-            padding: 5px 15px;
-            border-radius: 5px;
+            padding: 8px 15px;
+            border-radius: 20px;
+            color: white;
             cursor: pointer;
+            font-size: 14px;
+        }
+
+        .chat-input button:hover {
+            background-color: #0056b3;
         }
 
         .message {
-            margin-bottom: 10px;
+            max-width: 80%;
+            padding: 10px 15px;
+            border-radius: 15px;
+            position: relative;
+            word-wrap: break-word;
+            background-color: #e9ecef;
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background-color: #007bff;
+            color: white;
+        }
+
+        .message.other {
+            align-self: flex-start;
+            background-color: #f1f1f1;
+            color: #333;
         }
 
         .message small {
+            display: block;
+            font-size: 11px;
+            margin-top: 5px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .message.other small {
             color: #888;
         }
     </style>
@@ -156,10 +196,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['message'])) {
                 success: function(data) {
                     $('#chat-box-content').empty();
                     data.forEach(function(message) {
+                        const isCurrentUser = message.username === <?= json_encode($user_name) ?>;
+                        const messageClass = isCurrentUser ? 'user' : 'other';
+
                         $('#chat-box-content').append(
-                            '<div class="message"><strong>' + message.username +
-                            ':</strong> ' + message.message +
-                            '<small class="text-muted"> ' + message.time + '</small></div>'
+                            '<div class="message ' + messageClass + '">' +
+                            '<strong>' + message.username + ':</strong> ' + message.message +
+                            '<small>' + message.time + '</small></div>'
                         );
                     });
                     $('#chat-box-content').scrollTop($('#chat-box-content')[0].scrollHeight);
@@ -182,9 +225,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['message'])) {
                         alert(res.error); // hoặc hiển thị bằng modal đẹp hơn
                     } else {
                         $('#chat-box-content').append(
-                            '<div class="message"><strong>' + res.username +
+                            '<div class="message user"><strong>' + res.username +
                             ':</strong> ' + res.message +
-                            '<small class="text-muted"> ' + res.time + '</small></div>'
+                            '<small>' + res.time + '</small></div>'
                         );
                         $('#message').val('');
                         $('#chat-box-content').scrollTop($('#chat-box-content')[0].scrollHeight);

@@ -11,6 +11,62 @@ if (session_status() === PHP_SESSION_NONE) {
     <title>ShoeStore - Cửa hàng giày dép uy tín</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Nút chính để chọn chat */
+        #main-chat-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            background-color: #007bff;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 30px;
+            cursor: pointer;
+            z-index: 1000;
+        }
+
+        #main-chat-button:hover {
+            background-color: #0056b3;
+        }
+
+        /* Các nút chat ẩn ban đầu */
+        .chat-option {
+            position: fixed;
+            bottom: 100px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            background-color: #28a745;
+            color: white;
+            border-radius: 50%;
+            display: none; /* Ẩn nút chat ban đầu */
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            cursor: pointer;
+            z-index: 999;
+        }
+
+        .chat-option:hover {
+            background-color: #218838;
+        }
+
+        /* Các nút chat khác nhau */
+        #chat-button-dialogflow {
+            bottom: 160px;
+            background-color: #f39c12;
+        }
+
+        #chat-button-other {
+            bottom: 240px;
+            background-color: #e74c3c;
+        }
+    </style>
 </head>
 <body>
 <!-- Navbar -->
