@@ -29,24 +29,57 @@ $stmt = $conn->prepare("SELECT * FROM users WHERE id = ?");
 $stmt->execute([$_SESSION['user_id']]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// Tính tổng tiền
+// Tính tổng tiền của toàn bộ đơn hàng
 $total = 0;
 foreach ($cart_items as $item) {
     $total += $item['price'] * $item['quantity'];
 }
 
-// Kiểm tra tổng tiền hợp lệ
-if ($total <= 0) {
-    $error = "Tổng tiền không hợp lệ.";
+// Xử lý mã giảm giá
+$coupon_error = null;
+$coupon_code = $_SESSION['coupon_code'] ?? null;
+$discount_amount = $_SESSION['discount_amount'] ?? 0;
+$coupon_id = $_SESSION['coupon_id'] ?? null;
+
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['apply_coupon'])) {
+    $coupon_code_input = trim($_POST['coupon_code']);
+    
+    // Kiểm tra mã giảm giá
+    $stmt = $conn->prepare("SELECT * FROM coupons WHERE code = ? AND expiry_date >= CURDATE()");
+    $stmt->execute([$coupon_code_input]);
+    $coupon = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($coupon) {
+        $_SESSION['coupon_id'] = $coupon['id'];
+        $_SESSION['coupon_code'] = $coupon_code_input;
+        $_SESSION['discount_amount'] = ($total * $coupon['discount']) / 100; // Giảm giá dựa trên tổng tiền đơn hàng
+        $coupon_id = $_SESSION['coupon_id'];
+        $coupon_code = $_SESSION['coupon_code'];
+        $discount_amount = $_SESSION['discount_amount'];
+    } else {
+        $coupon_error = "Mã giảm giá không hợp lệ hoặc đã hết hạn.";
+        unset($_SESSION['coupon_id'], $_SESSION['coupon_code'], $_SESSION['discount_amount']);
+        $coupon_id = null;
+        $coupon_code = null;
+        $discount_amount = 0;
+    }
 }
 
 // Xử lý đặt hàng
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['place_order'])) {
     try {
         // Lấy thông tin giao hàng và ghi chú từ form
         $shipping_address = $_POST['shipping_address'];
         $notes = $_POST['notes'];
         $payment_method = $_POST['payment_method'];
+
+        // Áp dụng giảm giá cho tổng tiền đơn hàng
+        $final_total = $total - ($discount_amount ?? 0);
+
+        // Kiểm tra tổng tiền hợp lệ
+        if ($final_total <= 0) {
+            throw new Exception("Tổng tiền đơn hàng sau giảm giá không hợp lệ.");
+        }
 
         // Kiểm tra phương thức thanh toán hợp lệ
         $valid_methods = ['CASH', 'VNPAY'];
@@ -58,11 +91,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             // Lưu tạm thông tin vào SESSION cho VNPay
             $_SESSION['vnpay_pending'] = [
                 'cart_items' => $cart_items,
-                'total' => $total,
+                'total' => $final_total,
                 'shipping_address' => $shipping_address,
                 'notes' => $notes,
                 'user_id' => $_SESSION['user_id'],
-                'txn_ref' => time() // Dùng time() làm txn_ref tạm
+                'coupon_id' => $coupon_id,
+                'txn_ref' => time()
             ];
 
             // Tạo URL thanh toán VNPay
@@ -70,7 +104,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $vnp_TxnRef = $_SESSION['vnpay_pending']['txn_ref'];
             $vnp_OrderInfo = "Thanh toán cho giao dịch: " . $vnp_TxnRef;
             $vnp_OrderType = "other";
-            $vnp_Amount = (int)($total * 100);
+            $vnp_Amount = (int)($final_total * 100);
             $vnp_Locale = 'vn';
             $vnp_IpAddr = $_SERVER['REMOTE_ADDR'];
             $vnp_CreateDate = date('YmdHis');
@@ -92,9 +126,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 "vnp_ExpireDate" => $vnp_ExpireDate
             );
 
-            // Debug: Ghi log yêu cầu
-            error_log("VNPay request data: " . print_r($inputData, true));
-
             ksort($inputData);
             $query = "";
             $hashdata = "";
@@ -113,10 +144,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $vnpSecureHash = hash_hmac("sha512", $hashdata, VNPAY_HASH_SECRET);
             $vnp_Url .= 'vnp_SecureHash=' . $vnpSecureHash;
 
-            // Debug: Ghi log URL
-            error_log("VNPay redirect URL: " . $vnp_Url);
+            // Xóa thông tin coupon sau khi bắt đầu thanh toán VNPay
+            unset($_SESSION['coupon_id'], $_SESSION['coupon_code'], $_SESSION['discount_amount']);
 
-            // Chuyển hướng đến VNPay
             header("Location: $vnp_Url");
             exit();
         } else {
@@ -124,9 +154,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $conn->beginTransaction();
 
             // Tạo đơn hàng
-            $stmt = $conn->prepare("INSERT INTO orders (user_id, total_price, status, shipping_address, notes, payment_method) 
-                                   VALUES (?, ?, 'PENDING', ?, ?, ?)");
-            $stmt->execute([$_SESSION['user_id'], $total, $shipping_address, $notes, $payment_method]);
+            $stmt = $conn->prepare("INSERT INTO orders (user_id, total_price, status, shipping_address, notes, payment_method, coupon_id) 
+                                   VALUES (?, ?, 'PENDING', ?, ?, ?, ?)");
+            $stmt->execute([$_SESSION['user_id'], $final_total, $shipping_address, $notes, $payment_method, $coupon_id]);
             $order_id = $conn->lastInsertId();
 
             // Thêm chi tiết đơn hàng
@@ -149,6 +179,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $stmt->execute([$order_id, $payment_method, 'PENDING']);
 
             $conn->commit();
+
+            // Xóa thông tin coupon sau khi đặt hàng thành công
+            unset($_SESSION['coupon_id'], $_SESSION['coupon_code'], $_SESSION['discount_amount']);
 
             $_SESSION['success'] = "Đặt hàng thành công! Bạn sẽ thanh toán khi nhận hàng.";
             header("Location: order-confirmation.php?id=" . $order_id);
@@ -184,13 +217,28 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <?php if(isset($error)): ?>
             <div class="alert alert-danger"><?php echo $error; ?></div>
         <?php endif; ?>
+        <?php if(isset($coupon_error)): ?>
+            <div class="alert alert-danger"><?php echo $coupon_error; ?></div>
+        <?php endif; ?>
 
         <div class="row">
             <div class="col-md-8">
                 <div class="card mb-4">
                     <div class="card-body">
                         <h4 class="card-title">Thông tin giao hàng</h4>
+                        <!-- Form áp dụng mã giảm giá -->
                         <form method="POST" action="">
+                            <div class="mb-3">
+                                <label class="form-label">Mã giảm giá</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" name="coupon_code" value="<?php echo htmlspecialchars($coupon_code ?? ''); ?>" placeholder="Nhập mã để giảm giá tổng đơn hàng">
+                                    <button type="submit" class="btn btn-outline-primary" name="apply_coupon">Áp dụng</button>
+                                </div>
+                            </div>
+                        </form>
+                        <!-- Form đặt hàng -->
+                        <form method="POST" action="">
+                            <input type="hidden" name="place_order" value="1">
                             <div class="mb-3">
                                 <label class="form-label">Họ tên</label>
                                 <input type="text" class="form-control" value="<?php echo htmlspecialchars($user['username']); ?>" readonly>
@@ -243,8 +291,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         <?php endforeach; ?>
                         <hr>
                         <div class="d-flex justify-content-between">
-                            <strong>Tổng cộng:</strong>
-                            <strong><?php echo number_format($total, 0, ',', '.'); ?> đ</strong>
+                            <span>Tổng tiền hàng:</span>
+                            <span><?php echo number_format($total, 0, ',', '.'); ?> đ</span>
+                        </div>
+                        <?php if ($discount_amount > 0): ?>
+                            <div class="d-flex justify-content-between">
+                                <span>Giảm giá (<?php echo htmlspecialchars($coupon_code); ?>):</span>
+                                <span>-<?php echo number_format($discount_amount, 0, ',', '.'); ?> đ</span>
+                            </div>
+                        <?php endif; ?>
+                        <div class="d-flex justify-content-between">
+                            <strong>Tổng thanh toán:</strong>
+                            <strong><?php echo number_format($total - $discount_amount, 0, ',', '.'); ?> đ</strong>
                         </div>
                     </div>
                 </div>

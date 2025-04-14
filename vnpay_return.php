@@ -67,11 +67,12 @@ try {
         $shipping_address = $pending['shipping_address'];
         $notes = $pending['notes'];
         $user_id = $pending['user_id'];
+        $coupon_id = $pending['coupon_id'] ?? null; // Lấy coupon_id từ session
 
-        // Tạo đơn hàng
-        $stmt = $conn->prepare("INSERT INTO orders (user_id, total_price, status, shipping_address, notes, payment_method) 
-                               VALUES (?, ?, 'PENDING', ?, ?, 'VNPAY')");
-        $stmt->execute([$user_id, $total, $shipping_address, $notes]);
+        // Tạo đơn hàng, bao gồm coupon_id
+        $stmt = $conn->prepare("INSERT INTO orders (user_id, total_price, status, shipping_address, notes, payment_method, coupon_id) 
+                               VALUES (?, ?, 'PENDING', ?, ?, 'VNPAY', ?)");
+        $stmt->execute([$user_id, $total, $shipping_address, $notes, $coupon_id]);
         $order_id = $conn->lastInsertId();
 
         // Thêm chi tiết đơn hàng

@@ -4,17 +4,47 @@ include '../app/config/database.php';
 
 // Kiểm tra đăng nhập admin
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'ADMIN') {
-    header('Location: ../index.php'); // Chuyển hướng về trang chủ nếu không phải admin
+    header('Location: ../index.php');
     exit();
 }
 
 $database = new Database();
 $conn = $database->getConnection();
 
+// Lấy trạng thái từ query parameter và chuẩn hóa
+$status = isset($_GET['status']) ? strtoupper($_GET['status']) : null;
+
+// Chuẩn hóa để khớp với ENUM
+$status_map = [
+    'PENDING' => 'PENDING',
+    'PROCESSING' => 'PROCESSING',
+    'SHIPPED' => 'SHIPPED',
+    'DELIVERED' => 'DELIVERED',
+    'CANCELED' => 'CANCELLED', // Sửa từ 'canceled' thành 'CANCELLED'
+    'RETURNED' => 'RETURNED'
+];
+$status = isset($status_map[$status]) ? $status_map[$status] : null;
+
+// Danh sách trạng thái hợp lệ
+$valid_statuses = ['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'RETURNED'];
+$status_labels = [
+    'PENDING' => 'Chờ xử lý',
+    'PROCESSING' => 'Đang xử lý',
+    'SHIPPED' => 'Đã giao hàng',
+    'DELIVERED' => 'Đã nhận hàng',
+    'CANCELLED' => 'Đã hủy',
+    'RETURNED' => 'Đã trả hàng'
+];
+
+// Kiểm tra trạng thái hợp lệ
+if ($status && !in_array($status, $valid_statuses)) {
+    $status = null; // Nếu không hợp lệ, hiển thị tất cả đơn hàng
+}
+
 // Xử lý cập nhật trạng thái đơn hàng
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['order_id']) && isset($_POST['status'])) {
     $order_id = $_POST['order_id'];
-    $status = $_POST['status'];
+    $status_post = $_POST['status'];
 
     // Lấy trạng thái hiện tại của đơn hàng
     $stmt = $conn->prepare("SELECT status FROM orders WHERE id = ?");
@@ -27,23 +57,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['order_id']) && isset($
     } else {
         // Kiểm tra trạng thái không cho phép chuyển về trạng thái cũ
         if (
-            ($current_status == 'PROCESSING' && in_array($status, ['PENDING'])) ||
-            ($current_status == 'SHIPPED' && in_array($status, ['PENDING', 'PROCESSING'])) ||
-            ($current_status == 'DELIVERED' && in_array($status, ['PENDING', 'PROCESSING', 'SHIPPED'])) ||
-            ($current_status == 'CANCELLED' && in_array($status, ['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED'])) ||
-            ($current_status == 'RETURNED' && in_array($status, ['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED']))
+            ($current_status == 'PROCESSING' && in_array($status_post, ['PENDING'])) ||
+            ($current_status == 'SHIPPED' && in_array($status_post, ['PENDING', 'PROCESSING'])) ||
+            ($current_status == 'DELIVERED' && in_array($status_post, ['PENDING', 'PROCESSING', 'SHIPPED'])) ||
+            ($current_status == 'CANCELLED' && in_array($status_post, ['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED'])) ||
+            ($current_status == 'RETURNED' && in_array($status_post, ['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED']))
         ) {
-            $error_message = 'Không thể thay đổi trạng thái đơn hàng từ "' . $current_status . '" về trạng thái "' . $status . '".';
+            $error_message = 'Không thể thay đổi trạng thái đơn hàng từ "' . $status_labels[$current_status] . '" về trạng thái "' . $status_labels[$status_post] . '".';
         } else {
             // Kiểm tra trạng thái có hợp lệ không
-            $valid_status = ['PENDING', 'PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'RETURNED'];
-            if (!in_array($status, $valid_status)) {
+            if (!in_array($status_post, $valid_statuses)) {
                 $error_message = 'Trạng thái không hợp lệ.';
             } else {
                 try {
-                    // Cập nhật trạng thái đơn hàng trong cơ sở dữ liệu
+                    // Cập nhật trạng thái đơn hàng
                     $stmt = $conn->prepare("UPDATE orders SET status = ? WHERE id = ?");
-                    $stmt->execute([$status, $order_id]);
+                    $stmt->execute([$status_post, $order_id]);
 
                     if ($stmt->rowCount() > 0) {
                         $success_message = 'Trạng thái đơn hàng đã được cập nhật thành công!';
@@ -61,10 +90,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['order_id']) && isset($
 // Lấy danh sách đơn hàng
 $query = "SELECT o.*, u.username as user_name, u.email as user_email 
           FROM orders o 
-          JOIN users u ON o.user_id = u.id 
-          ORDER BY o.created_at DESC";
-$stmt = $conn->query($query);
+          JOIN users u ON o.user_id = u.id";
+if ($status) {
+    $query .= " WHERE o.status = :status";
+}
+$query .= " ORDER BY o.created_at DESC";
+
+$stmt = $conn->prepare($query);
+if ($status) {
+    $stmt->bindParam(':status', $status);
+}
+$stmt->execute();
 $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Tiêu đề trang
+$page_title = $status ? "Quản lý đơn hàng - " . $status_labels[$status] : "Quản lý đơn hàng";
 ?>
 
 <!DOCTYPE html>
@@ -72,7 +112,7 @@ $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quản lý đơn hàng - MyStore</title>
+    <title><?php echo htmlspecialchars($page_title); ?> - MyStore</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -85,13 +125,13 @@ $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
             <!-- Main content -->
             <main class="col-md-10 ms-sm-auto px-md-4">
                 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                    <h1 class="h2">Quản lý đơn hàng</h1>
+                    <h1 class="h2"><?php echo htmlspecialchars($page_title); ?></h1>
                 </div>
 
                 <?php if (isset($success_message)): ?>
-                    <div class="alert alert-success"><?php echo $success_message; ?></div>
+                    <div class="alert alert-success"><?php echo htmlspecialchars($success_message); ?></div>
                 <?php elseif (isset($error_message)): ?>
-                    <div class="alert alert-danger"><?php echo $error_message; ?></div>
+                    <div class="alert alert-danger"><?php echo htmlspecialchars($error_message); ?></div>
                 <?php endif; ?>
 
                 <div class="card">
@@ -112,7 +152,7 @@ $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                 <tbody>
                                     <?php foreach ($orders as $order): ?>
                                         <tr>
-                                            <td>#<?php echo $order['id']; ?></td>
+                                            <td>#<?php echo htmlspecialchars($order['id']); ?></td>
                                             <td><?php echo htmlspecialchars($order['user_name']); ?></td>
                                             <td><?php echo htmlspecialchars($order['user_email']); ?></td>
                                             <td><?php echo number_format($order['total_price'], 0, ',', '.'); ?>đ</td>
