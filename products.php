@@ -12,11 +12,11 @@ $min_price = isset($_GET['min_price']) ? (float)$_GET['min_price'] : 0;
 $max_price = isset($_GET['max_price']) ? (float)$_GET['max_price'] : 0;
 $sort = isset($_GET['sort']) ? $_GET['sort'] : 'newest';
 
-// Lấy danh sách danh mục
+// Lấy danh sách danh mục sản phẩm
 $stmt = $conn->query("SELECT * FROM categories ORDER BY name");
 $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Xây dựng câu truy vấn tìm kiếm
+// Xây dựng câu truy vấn tìm kiếm 
 $sql = "SELECT p.*, c.name as category_name 
         FROM products p 
         JOIN categories c ON p.category_id = c.id 
@@ -81,7 +81,7 @@ $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <!-- Navbar -->
     <?php include './app/views/header.php'; ?>
 
-    <!-- Tìm kiếm sản phẩm -->
+    <!-- Ô Tìm kiếm sản phẩm -->
     <div class="container my-5">
         <h1 class="text-center mb-5">Tìm kiếm sản phẩm</h1>
 

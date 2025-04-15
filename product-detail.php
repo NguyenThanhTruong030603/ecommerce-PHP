@@ -23,7 +23,7 @@ if (!$product) {
     exit();
 }
 
-// Xử lý thêm vào giỏ hàng
+// Xử lý thêm sản phẩm vào giỏ hàng
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['quantity']) && isset($_SESSION['user_id'])) {
     $quantity = $_POST['quantity'];
     $user_id = $_SESSION['user_id'];

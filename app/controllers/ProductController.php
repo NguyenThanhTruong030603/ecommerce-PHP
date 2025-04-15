@@ -44,3 +44,4 @@ class ProductController {
         include './app/views/product/detail.php';
     }
 }
+//Finally, we can create a new file named `ProductController.php` in the `app/controllers` directory. This file will handle the logic for searching and displaying product details. The code in this file will use the `Product` and `Category` models to interact with the database and retrieve the necessary data.

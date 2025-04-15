@@ -67,3 +67,5 @@ class Product {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 }
+// //Finally, we can create a new file named `Product.php` in the `app/models` directory. This file will handle the logic for interacting with the products in the database. The code in this file will use the PDO connection to fetch products based on search criteria and product details by ID.
+// /This file will also include methods for searching products and getting product details by ID.
