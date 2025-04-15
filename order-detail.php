@@ -24,7 +24,7 @@ if (!$order) {
     exit();
 }
 
-// Lấy chi tiết đơn hàng
+// Lấy chi tiết đơnhàng
 $stmt = $conn->prepare("SELECT od.*, p.name, p.image 
                        FROM order_details od 
                        JOIN products p ON od.product_id = p.id 

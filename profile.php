@@ -15,7 +15,7 @@ $stmt = $conn->prepare("SELECT * FROM users WHERE id = ?");
 $stmt->execute([$_SESSION['user_id']]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// Xử lý cập nhật thông tin
+// Xử lý cập nhật thông tin người dùng
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_profile'])) {
     $username = $_POST['username'];
     $email = $_POST['email'];
@@ -42,7 +42,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_profile'])) {
         }
     }
 
-    // Kiểm tra email trùng lặp
+    // Kiểm tra email nếu trùng lặp
     if (empty($error)) {
         $stmt = $conn->prepare("SELECT id FROM users WHERE email = ? AND id != ?");
         $stmt->execute([$email, $_SESSION['user_id']]);
@@ -62,7 +62,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_profile'])) {
     }
 }
 
-// Lấy lịch sử đơn hàng
+// Lấy lịch sử đơn hàng đã đặt
 $stmt = $conn->prepare("SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC");
 $stmt->execute([$_SESSION['user_id']]);
 $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
