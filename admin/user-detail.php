@@ -40,7 +40,7 @@ $stmt = $conn->prepare($query);
 $stmt->execute([$user_id]);
 $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Kiểm tra thay đổi vai trò
+// Kiểm tra thay đổi vai trò người dùng 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['role'])) {
     // Chỉ cho phép thay đổi vai trò nếu người dùng không phải là admin
     if ($user['role'] !== 'ADMIN') {
