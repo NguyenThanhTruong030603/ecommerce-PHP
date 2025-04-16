@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['user_id']) && isset($_
     }
 }
 
-// Lấy danh sách người dùng
+// Truy vấn danh sách người dùng 
 $query = "SELECT u.*, 
           (SELECT COUNT(*) FROM orders WHERE user_id = u.id) as order_count,
           (SELECT SUM(total_price) FROM orders WHERE user_id = u.id) as total_spent
